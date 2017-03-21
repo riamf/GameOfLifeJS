@@ -1,0 +1,278 @@
+<html>
+   <head>
+     <style>
+     canvas {
+      padding-left: 0;
+      padding-right: 0;
+      margin-left: 0;
+      margin-right: 0;
+      vertical-align: top;
+    }
+     html, body {
+       width:  100%;
+       height: 100%;
+       margin: 0px;
+       padding: 0px;
+     }
+     </style>
+   </head>
+   <body style=" background: #DDDDDD;">
+       <canvas id="gridCanvas" style="background: #DDDDDD";></canvas>
+       <script type="text/javascript" language="javascript">
+
+  function rgbToHex(r, g, b) {
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+const LifeEnum = {
+  alive : 1,
+  dead : 0
+};
+
+class Box {
+
+  constructor(x,y,size,i,j) {
+    this.x = x;
+    this.y = y;
+    this.size = size;
+    this.i = i;
+    this.j = j;
+  }
+
+  animate(context, startTime, state, oldState) {
+    var time = (new Date()).getTime() - startTime;
+    var seconds = time/1000;
+    var duration = 1;
+
+    var percent = Math.min(100 - Math.floor(100 * ((duration - seconds) / duration)),100);
+    var c = Math.round(state == LifeEnum.alive ? (250 - (1.5 * percent + 50)) : (1.5 * percent + 50));
+
+    context.clearRect(this.x,
+    this.y,
+    this.size,
+    this.size);
+    context.fillStyle = rgbToHex(c,c,c);
+    context.fillRect(this.x,
+    this.y,
+    this.size,
+    this.size);
+
+    var self = this;
+    var s = state;
+    var o = oldState;
+    if  (seconds < duration) {
+        requestAnimationFrame(function() {
+          self.animate(context, startTime, s,o);
+        });
+    }
+  }
+
+  animateWith(context, state, oldState) {
+    var startTime = (new Date()).getTime();
+    var self = this;
+    
+    // console.log(state,oldState);
+    // context.clearRect(this.x,
+    // this.y,
+    // this.size,
+    // this.size);
+    // context.fillStyle = state == LifeEnum.alive ? "red" : "blue";
+    // context.fillRect(this.x,
+    // this.y,
+    // this.size,
+    // this.size);
+
+    // setTimeout(function() { 
+    
+    // },3000);
+    requestAnimationFrame(function() {
+        self.animate(context, startTime, state,oldState);
+    });
+    
+  }
+
+  draw(context, state) {
+    var c = state == LifeEnum.alive ? 50 : 200
+    
+    context.fillStyle = rgbToHex(c,c,c);
+    context.fillRect(this.x,
+    this.y,
+    this.size,
+    this.size);
+  }
+
+  neighbours() {
+    return [
+      new Box(0,0,0,this.i,this.j-1),
+      new Box(0,0,0,this.i+1,this.j-1),
+      new Box(0,0,0,this.i+1,this.j),
+      new Box(0,0,0,this.i+1,this.j+1),
+      new Box(0,0,0,this.i,this.j+1),
+      new Box(0,0,0,this.i-1,this.j+1),
+      new Box(0,0,0,this.i-1,this.j),
+      new Box(0,0,0,this.i-1,this.j-1),
+    ];
+  }
+};
+
+class Life {
+  constructor(state,box) {
+    this.state = state;
+    this.box = box;
+    this.oldState = state;
+  }
+  draw(context) {
+    var box = this.box;
+    var state = this.state;
+    box.draw(context,state);
+  }
+  neighbours() {
+    return this.box.neighbours()
+  }
+  animateWith(context) {
+    if (this.state != this.oldState) {
+      this.box.animateWith(context,this.state,this.oldState)
+      this.oldState = this.state;
+    }
+  }
+  setNewSate(state) {
+    this.oldState = this.state;
+    this.state = state
+  }
+};
+class LifeArray {
+   constructor(width, height, boxSize) {
+     this.lifeArray = new Array();
+     this.rows = Math.round(height/boxSize);
+     this.cols = Math.round(width/boxSize);
+      for (var i = 0; i < this.cols; i++) {
+        var rowArray = new Array();
+        for (var j = 0; j < this.rows; j++) {
+          var lifeState = (Math.round(Math.random() * 11) + 1)%5 == 0 ? 1 : 0;
+          var box = new Box(i*boxSize,j*boxSize,boxSize,i,j);
+          var state = lifeState == 0 ? LifeEnum.dead : LifeEnum.alive;
+          rowArray.push(new Life(state,box));
+        }
+        this.lifeArray.push(rowArray);
+      }
+   }
+
+   drawWithContext(context) {
+      this.lifeArray.forEach(function(element) {
+        element.forEach(function(life) {
+            life.draw(context)
+        });
+      });
+   }
+
+   animateWith(context) {
+     this.lifeArray.forEach(function(element) {
+        element.forEach(function(life) {
+            life.animateWith(context)
+        });
+      });
+   }
+
+   decideFate(life) {
+
+     var countAlive = 0;
+     var countDead = 0;
+     var rows = this.rows;
+     var cols = this.cols;
+     var neighbours = life.neighbours();
+
+     for (var x=0;x<neighbours.length;x++) {
+
+      var box = neighbours[x];
+       var i = box.i >= cols ? 0:box.i;
+       i = i < 0 ? cols-1 : i;
+       var j = box.j >= rows ? 0 : box.j;
+       j = j < 0 ? rows-1 : j;
+       var neighbour = this.lifeArray[i][j];
+
+       countAlive += neighbour.state == LifeEnum.alive ? 1 : 0
+       countDead += neighbour.state == LifeEnum.dead ? 1 : 0
+     }
+
+     if (life.state == LifeEnum.alive) {
+        if (countAlive < 2) {
+          life.setNewSate(LifeEnum.dead);
+        }
+        if (countAlive > 3) {
+          life.setNewSate(LifeEnum.dead);
+        }
+     } else if (life.state == LifeEnum.dead ) {
+       if (countAlive == 3) {
+         life.setNewSate(LifeEnum.alive);
+       }
+     }
+   }
+
+   nextGeneration() {
+     for (var i = 0; i < this.cols; i++) {
+       for (var j=0; j< this.rows; j++) {
+         var life = this.lifeArray[i][j];
+         this.decideFate(life);
+       }
+     }
+   }
+};
+class Main {
+  constructor(boxSize) {
+    this.boxSize = boxSize
+  }
+
+  getCanvas() {
+    return document.getElementById("gridCanvas");
+  }
+
+  getContext() {
+    return this.getCanvas().getContext("2d");
+  }
+
+  init() {
+    var bw = window.innerWidth;
+    var bh = window.innerHeight;
+    this.lifeArray = new LifeArray(bw,bh,this.boxSize);
+
+    var canvas = this.getCanvas()
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+
+  draw() {
+    var ctx = this.getContext();
+    this.lifeArray.drawWithContext(ctx);
+  }
+
+  recalculate() {
+    this.lifeArray.nextGeneration();
+  }
+  animate() {
+    var ctx = this.getContext();
+    this.lifeArray.animateWith(ctx);
+  }
+};
+
+//MAIN:
+var interval = 10000;
+function go(main) {
+  main.recalculate();
+  main.animate();
+  console.log("Generating...")
+  setTimeout(function() { go(main) }, interval);
+}
+
+var requestAnimationFrame = window.requestAnimationFrame ||
+                            window.mozRequestAnimationFrame ||
+                            window.webkitRequestAnimationFrame ||
+                            window.msRequestAnimationFrame;
+
+var m = new Main(30);
+m.init()
+m.draw()
+setTimeout(function() { go(m); },1000);
+
+   </script>
+   </body>
+   </html>
